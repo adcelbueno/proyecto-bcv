@@ -1,34 +1,58 @@
+# Nombre del flujo de trabajo que aparecerá en la pestaña 'Actions' de GitHub
 name: Actualizar Tasa BCV Diaria
 
+# Definición de los eventos que disparan la ejecución
 on:
   schedule:
-    # Se ejecuta de lunes a viernes a las 21:00 UTC (5:00 PM Venezuela aprox)
+    # Programación automática usando sintaxis Cron (Minuto Hora Día Mes Día-Semana)
+    # '0 21 * * 1-5' significa: Todos los días de lunes a viernes a las 21:00 UTC
+    # (Aprox. 5:00 PM hora de Venezuela, ideal para captar el cierre del BCV)
     - cron: '0 21 * * 1-5'
-  workflow_dispatch: # Permite ejecutarlo manualmente para probar
+  
+  # Permite ejecutar el script manualmente haciendo clic en un botón desde la web de GitHub
+  workflow_dispatch: 
 
+# Lista de tareas a realizar
 jobs:
   build:
+    # Tipo de sistema operativo de la máquina virtual (usamos Ubuntu/Linux)
     runs-on: ubuntu-latest
+    
+    # Permisos necesarios para que el robot pueda escribir/subir cambios al repositorio
+    permissions:
+      contents: write
+      
     steps:
+      # Paso 1: Copia los archivos de tu repositorio a la máquina virtual
       - name: Descargar código del repositorio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # Paso 2: Instala el entorno de Python en la versión específica
       - name: Configurar Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Instalar librerías
-        run: |
-          pip install requests beautifulsoup4
+      # Paso 3: Instala las librerías necesarias (requests para la web y BeautifulSoup para procesar)
+      - name: Instalar librerías necesarias
+        run: pip install requests beautifulsoup4
 
-      - name: Ejecutar Scraper
+      # Paso 4: Ejecuta tu script principal que extrae la tasa y actualiza el archivo .db
+      - name: Ejecutar Scraper de Tasa BCV
         run: python scraper.py
 
+      # Paso 5: Sincroniza la base de datos actualizada de vuelta a tu cuenta de GitHub
       - name: Guardar cambios en la base de datos
         run: |
+          # Configura una identidad de usuario para que el commit sea aceptado
           git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.name "GitHub Action Bot"
+          
+          # Prepara el archivo de la base de datos para subirlo
           git add historial_bcv.db
-          git commit -m "Actualización automática: $(date)"
-          git push
+          
+          # Lógica de seguridad:
+          # 1. 'git diff' verifica si el archivo cambió realmente.
+          # 2. Si hay cambios, hace el commit con la fecha actual y lo sube (push).
+          # 3. Si NO hay cambios, el comando se salta el commit para no generar un error.
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Actualización automática de tasa: $(date)" && git push)
