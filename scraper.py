@@ -1,3 +1,4 @@
+import os # Permite usar variables entornos OS 
 import requests
 from bs4 import BeautifulSoup
 import sqlite3
