@@ -4,14 +4,12 @@ name: Actualizar Tasa BCV Diaria
 # Definición de los eventos que disparan la ejecución
 on:
   schedule:
-    # Programación automática usando sintaxis Cron (Minuto Hora Día Mes Día-Semana)
-    # '0 21 * * 1-5' significa: Todos los días de lunes a viernes a las 21:00 UTC
-    # (Aprox. 5:00 PM hora de Venezuela, ideal para captar el cierre del BCV)
-    - cron: '0 21 * * 1-5'
-  
-  # Permite ejecutar el script manualmente haciendo clic en un botón desde la web de GitHub
-  workflow_dispatch: 
-
+    # Ejecuta a las 5:15, 5:45 y 6:15 PM (Hora Venezuela, aprox)
+    # Nota: GitHub usa UTC, así que sumamos 4 horas
+    - cron: '15 21 * * 1-5'
+    - cron: '45 21 * * 1-5'
+    - cron: '15 22 * * 1-5'
+  workflow_dispatch: # Mantiene el botón manual
 # Lista de tareas a realizar
 jobs:
   build:
