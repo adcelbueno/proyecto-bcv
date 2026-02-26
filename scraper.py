@@ -1,80 +1,107 @@
-import os # Permite usar variables entornos OS 
+import os
 import requests
 from bs4 import BeautifulSoup
 import sqlite3
 from datetime import datetime
+import urllib3
 
-# --- CONFIGURACIÓN DEL CANAL ---
-# Ya no escribimos los números aquí. El robot los leerá de la "caja fuerte" de GitHub.
+# Desactiva advertencias de certificados SSL (común en la web del BCV)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Configuración mediante Variables de Entorno (GitHub Secrets)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CANAL_TELEGRAM = os.getenv("TELEGRAM_CHAT_ID")
 
-
-def enviar_notificacion_canal(mensaje):
-    """Envía la tasa a todos los suscriptores del canal simultáneamente"""
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CANAL_TELEGRAM, 
-        "text": mensaje, 
-        "parse_mode": "Markdown"
-    }
-    try:
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
-            print("Notificación enviada al canal con éxito.")
-        else:
-            print(f"Error de Telegram: {response.text}")
-    except Exception as e:
-        print(f"Fallo de conexión: {e}")
-
-def obtener_tasa_bcv():
-    # ... (Mantenemos tu lógica de scraping que ya funciona) ...
+def obtener_datos_bcv():
+    """Extrae la tasa y la fecha de vigencia directamente desde la web del BCV."""
     url = "https://www.bcv.org.ve/"
     try:
-        response = requests.get(url, verify=False)
-        soup = BeautifulSoup(response.content, 'html.parser')
-        tasa_elemento = soup.find('div', id='dolar').find('strong')
-        tasa_texto = tasa_elemento.text.strip().replace(',', '.')
-        return float(tasa_texto)
-    except Exception as e:
-        print(f"Error capturando tasa: {e}")
-        return None
+        # Petición a la web del BCV con timeout de 20 segundos
+        response = requests.get(url, verify=False, timeout=20)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-def guardar_y_notificar(tasa_hoy):
-    fecha_hoy = datetime.now().strftime('%Y-%m-%d')
+        # 1. EXTRAER LA FECHA DE VALOR (Vigencia)
+        # Usamos el atributo 'content' que contiene la fecha en formato ISO (YYYY-MM-DD)
+        span_fecha = soup.find("span", {"class": "date-display-single"})
+        if span_fecha and span_fecha.has_attr('content'):
+            fecha_valor = span_fecha['content'].split('T')[0]
+        else:
+            # Fallback en caso de que el atributo no esté
+            fecha_valor = None
+        
+        # 2. EXTRAER EL MONTO DEL DÓLAR
+        # Buscamos el contenedor específico del dólar y su valor en negrita
+        tasa_raw = soup.find("div", {"id": "dolar"}).find("strong").text.strip()
+        tasa_limpia = float(tasa_raw.replace(',', '.'))
+
+        return fecha_valor, tasa_limpia
+    except Exception as e:
+        print(f"Error realizando el scraping: {e}")
+        return None, None
+
+def procesar_tasa():
+    """Valida la fecha contra la DB, guarda si es nueva y notifica a Telegram."""
+    fecha_web, monto_actual = obtener_datos_bcv()
+    
+    if not fecha_web or not monto_actual:
+        print("No se pudieron obtener los datos de la web.")
+        return
+
+    # Conexión a la base de datos local
     conn = sqlite3.connect('historial_bcv.db')
     cursor = conn.cursor()
 
-    # Buscamos la última tasa para calcular variación
-    cursor.execute("SELECT monto FROM tasas ORDER BY id DESC LIMIT 1")
-    ultimo = cursor.fetchone()
-    tasa_ayer = ultimo[0] if ultimo else 0
-    variacion = tasa_hoy - tasa_ayer
+    # VALIDACIÓN: ¿Ya existe esta fecha de vigencia en nuestra base de datos?
+    cursor.execute("SELECT monto FROM tasas WHERE fecha = ?", (fecha_web,))
+    resultado = cursor.fetchone()
 
-    try:
-        # Intentamos guardar (la fecha UNIQUE evitará duplicados)
-        cursor.execute("INSERT INTO tasas (fecha, monto, variacion) VALUES (?, ?, ?)", 
-                       (fecha_hoy, tasa_hoy, variacion))
-        conn.commit()
-        
-        # Lógica de notificación: Enviamos si hay cambio o si es el primer registro
-        if variacion != 0 or not ultimo:
-            icono = "🟢" if variacion >= 0 else "🔴"
-            mensaje = (
-                f"📢 *ACTUALIZACIÓN BCV*\n\n"
-                f"📅 *Fecha:* {fecha_hoy}\n"
-                f"💵 *Tasa:* {tasa_hoy:.4f} Bs\n"
-                f"{icono} *Variación:* {variacion:+.4f}\n\n"
-                f"📍 _Tasa oficial suministrada por el BCV_"
-            )
-            enviar_notificacion_canal(mensaje)
-            
-    except sqlite3.IntegrityError:
-        print("La tasa de hoy ya estaba registrada. No se envía duplicado.")
-    
+    if resultado:
+        # Si la fecha ya existe, el script termina aquí sin notificar
+        print(f"La tasa para la fecha {fecha_web} ya está registrada ({resultado[0]}).")
+        conn.close()
+        return
+
+    # SI ES NUEVA: Buscamos la última tasa registrada para calcular la variación
+    cursor.execute("SELECT monto FROM tasas ORDER BY id DESC LIMIT 1")
+    ultima_tasa_db = cursor.fetchone()
+    tasa_anterior = ultima_tasa_db[0] if ultima_tasa_db else monto_actual
+    variacion = monto_actual - tasa_anterior
+
+    # GUARDAR EN LA BASE DE DATOS
+    cursor.execute("INSERT INTO tasas (fecha, monto, variacion) VALUES (?, ?, ?)", 
+                   (fecha_web, monto_actual, variacion))
+    conn.commit()
     conn.close()
 
+    # ENVIAR NOTIFICACIÓN A TELEGRAM
+    enviar_telegram(fecha_web, monto_actual, variacion)
+    print(f"Éxito: Nueva tasa guardada y notificada para el {fecha_web}.")
+
+def enviar_telegram(fecha, tasa, var):
+    """Construye y envía el mensaje formateado al canal de Telegram."""
+    # Selección de emoji según la variación
+    emoji_var = "🟢" if var > 0 else "🔴" if var < 0 else "⚪"
+    
+    # Formateo del mensaje con Markdown
+    mensaje = (
+        f"📢 *ACTUALIZACIÓN BCV*\n\n"
+        f"📅 *Vigencia:* {fecha}\n"
+        f"💵 *Tasa:* {tasa:.4f} Bs\n"
+        f"{emoji_var} *Variación:* {var:+.4f}\n\n"
+        f"📍 _Tasa oficial del Banco Central de Venezuela_"
+    )
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": CANAL_TELEGRAM,
+        "text": mensaje,
+        "parse_mode": "Markdown"
+    }
+    
+    try:
+        requests.post(url, data=payload)
+    except Exception as e:
+        print(f"Error enviando mensaje a Telegram: {e}")
+
 if __name__ == "__main__":
-    tasa = obtener_tasa_bcv()
-    if tasa:
-        guardar_y_notificar(tasa)
+    procesar_tasa()
