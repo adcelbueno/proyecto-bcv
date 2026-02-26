@@ -4,9 +4,10 @@ import sqlite3
 from datetime import datetime
 
 # --- CONFIGURACIÓN DEL CANAL ---
-TELEGRAM_TOKEN = "8351119219:AAG2-4S4sqhhlQFucVxhPrMyptWvYcoyFic"
-# Ahora usamos el nombre del canal con el símbolo @
-CANAL_TELEGRAM = "@info_tasas_bcv" 
+# Ya no escribimos los números aquí. El robot los leerá de la "caja fuerte" de GitHub.
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CANAL_TELEGRAM = os.getenv("TELEGRAM_CHAT_ID")
+
 
 def enviar_notificacion_canal(mensaje):
     """Envía la tasa a todos los suscriptores del canal simultáneamente"""
