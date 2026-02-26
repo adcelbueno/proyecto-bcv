@@ -54,3 +54,10 @@ jobs:
           # 2. Si hay cambios, hace el commit con la fecha actual y lo sube (push).
           # 3. Si NO hay cambios, el comando se salta el commit para no generar un error.
           git diff --quiet && git diff --staged --quiet || (git commit -m "Actualización automática de tasa: $(date)" && git push)
+
+- name: Ejecutar Scraper
+        # Esta sección conecta los secretos de GitHub con el código
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scraper.py
