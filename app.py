@@ -59,8 +59,22 @@ if not df_tasas.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # Botón Social (Placeholder interactivo)
-    st.button("🔗 Compartir Tasa Actual")
+   # --- LÓGICA DE COMPARTIR ---
+# Preparamos el texto que se enviará
+texto_compartir = f"📊 Tasa oficial BCV: {ultima_fila['monto']:.4f} Bs (Vigencia: {ultima_fila['fecha']}). Consulta más en: {st.query_params.get('url', 'MonitorBCV')}"
+url_whatsapp = f"https://api.whatsapp.com/send?text={texto_compartir}"
+
+# Diseño del Botón Social Innovador
+st.markdown("### 📢 Comparte el valor del día")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.link_button("🟢 Compartir en WhatsApp", url_whatsapp, use_container_width=True)
+
+with col2:
+    # Enlace para Telegram
+    url_telegram = f"https://t.me/share/url?url={st.query_params.get('url', '')}&text={texto_compartir}"
+    st.link_button("🔵 Compartir en Telegram", url_telegram, use_container_width=True)
 
     # --- SECCIÓN DINÁMICA: CONSULTA POR CALENDARIO ---
     st.divider()
