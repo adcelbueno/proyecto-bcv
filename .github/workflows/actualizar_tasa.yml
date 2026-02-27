@@ -1,15 +1,17 @@
 # Nombre del flujo de trabajo que aparecerá en la pestaña 'Actions' de GitHub
-name: Actualizar Tasa BCV Diaria
+name: Scraper Tasa BCV (Alta Frecuencia)
 
-# Definición de los eventos que disparan la ejecución
 on:
   schedule:
-    # Ejecuta a las 5:15, 5:45 y 6:15 PM (Hora Venezuela, aprox)
-    # Nota: GitHub usa UTC, así que sumamos 4 horas
-    - cron: '15 21 * * 1-5'
-    - cron: '45 21 * * 1-5'
-    - cron: '15 22 * * 1-5'
-  workflow_dispatch: # Mantiene el botón manual
+    # Ventana de Ráfaga: Cada 5 min entre 4:45 PM y 6:15 PM (20:45 a 22:15 UTC)
+    - cron: '45,50,55 20 * * 1-5'
+    - cron: '*/5 21 * * 1-5'
+    - cron: '0,5,10,15 22 * * 1-5'
+    
+    # Revisión de seguridad: 10:00 AM (14:00 UTC)
+    - cron: '0 14 * * 1-5'
+  
+  workflow_dispatch: # Permite ejecución manual
 
 # Lista de tareas a realizar
 jobs:
