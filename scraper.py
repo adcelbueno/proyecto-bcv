@@ -4,6 +4,8 @@ from bs4 import BeautifulSoup
 import sqlite3
 from datetime import datetime
 import urllib3
+import random #Nuevo para Anti-cache
+
 
 # Desactiva advertencias de certificados SSL (común en la web del BCV)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -14,7 +16,15 @@ CANAL_TELEGRAM = os.getenv("TELEGRAM_CHAT_ID")
 
 def obtener_datos_bcv():
     """Extrae la tasa y la fecha de vigencia directamente desde la web del BCV."""
-    url = "https://www.bcv.org.ve/"
+    #Añade un parametro aleatoreo para forzar la actualizacion del servidor
+    url_bcv = f"https://www.bcv.org.ve/?t={random.randint(1000, 9999)}"
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+    }
+
     try:
         # Petición a la web del BCV con timeout de 20 segundos
         response = requests.get(url, verify=False, timeout=20)

@@ -99,9 +99,11 @@ with col2:
     st.subheader("📈 Evolución 10 días")
     st.line_chart(df_tasas.head(10).set_index('fecha')['monto'])
 
-# Pie de página con autoría
+# Pie de página con autoría y versión v3.2
 st.markdown(f"""
-    <div class="footer">
-        Desarrollado por: <b>adnetwork.ve</b> - {datetime.now().year} | Versión 3.0 Web & Mobile
+    <div style='text-align: center; color: #6b7280; padding: 20px; font-size: 0.85rem; font-family: sans-serif;'>
+        <hr style='border: 0; height: 1px; background-image: linear-gradient(to right, rgba(0,0,0,0), rgba(0,0,0,0.1), rgba(0,0,0,0)); margin-bottom: 20px;'>
+        Desarrollado por: <b style='color: #1a73e8;'>adnetwork.ve</b> - {datetime.now().year}<br>
+        v3.2 | High-Frequency Sync (5min)
     </div>
-    """, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
