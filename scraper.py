@@ -27,7 +27,7 @@ def obtener_datos_bcv():
 
     try:
         # Petición a la web del BCV con timeout de 20 segundos
-        response = requests.get(url, verify=False, timeout=20)
+        response = requests.get(url_bcv, verify=False, timeout=20)
         soup = BeautifulSoup(response.text, 'html.parser')
 
         # 1. EXTRAER LA FECHA DE VALOR (Vigencia)
